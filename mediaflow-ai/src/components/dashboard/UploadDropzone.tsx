@@ -2,20 +2,26 @@
 
 import { CircleAlert, CircleCheck, FileVideo, ImageIcon, Loader2, UploadCloud, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
+import { PipelineStatus } from "@/components/pipeline/PipelineStatus";
 import type { UploadResult } from "@/lib/cloudinary/upload-schemas";
 import { formatBytes, mediaTypeOf, validateFile } from "@/lib/media";
+import { createPipelineState, withStage } from "@/lib/pipeline";
+import { runPipeline, type PipelineOutput } from "@/lib/pipeline-client";
 import { uploadToCloudinary } from "@/lib/upload-client";
 import { cn } from "@/lib/utils";
+import type { PipelineStageId, PipelineState, StageStatus } from "@/types/pipeline";
 
-type ItemStatus = "ready" | "uploading" | "uploaded" | "failed";
+type ItemStatus = "ready" | "uploading" | "analyzing" | "done" | "failed";
 
 type QueuedFile = {
   id: string;
   file: File;
   status: ItemStatus;
   progress: number;
+  pipeline: PipelineState;
   message?: string;
-  result?: UploadResult;
+  upload?: UploadResult;
+  output?: PipelineOutput;
 };
 
 export function UploadDropzone() {
@@ -28,6 +34,11 @@ export function UploadDropzone() {
   const patch = (id: string, changes: Partial<QueuedFile>) =>
     setQueue((q) => q.map((f) => (f.id === id ? { ...f, ...changes } : f)));
 
+  const setStage = (id: string, stage: PipelineStageId, status: StageStatus) =>
+    setQueue((q) =>
+      q.map((f) => (f.id === id ? { ...f, pipeline: withStage(f.pipeline, stage, status) } : f)),
+    );
+
   function addFiles(files: FileList | null) {
     if (!files) return;
     const added = Array.from(files).map((file): QueuedFile => {
@@ -36,6 +47,7 @@ export function UploadDropzone() {
         id: crypto.randomUUID(),
         file,
         progress: 0,
+        pipeline: createPipelineState(),
         status: error ? "failed" : "ready",
         message: error ?? undefined,
       };
@@ -43,19 +55,32 @@ export function UploadDropzone() {
     setQueue((q) => [...q, ...added]);
   }
 
+  async function processItem(item: QueuedFile) {
+    patch(item.id, { status: "uploading", progress: 0 });
+    setStage(item.id, "INGEST", "processing");
+
+    let upload: UploadResult;
+    try {
+      upload = await uploadToCloudinary(item.file, (progress) => patch(item.id, { progress }));
+    } catch (err) {
+      setStage(item.id, "INGEST", "failed");
+      patch(item.id, { status: "failed", message: err instanceof Error ? err.message : "Upload failed." });
+      return;
+    }
+
+    patch(item.id, { status: "analyzing", progress: 100, upload });
+    try {
+      const output = await runPipeline(upload, (stage, status) => setStage(item.id, stage, status));
+      patch(item.id, { status: "done", output });
+    } catch (err) {
+      patch(item.id, { status: "failed", message: err instanceof Error ? err.message : "Processing failed." });
+    }
+  }
+
   async function uploadAll() {
     setBusy(true);
     for (const item of queue.filter((f) => f.status === "ready")) {
-      patch(item.id, { status: "uploading", progress: 0 });
-      try {
-        const result = await uploadToCloudinary(item.file, (progress) => patch(item.id, { progress }));
-        patch(item.id, { status: "uploaded", progress: 100, result });
-      } catch (err) {
-        patch(item.id, {
-          status: "failed",
-          message: err instanceof Error ? err.message : "Upload failed.",
-        });
-      }
+      await processItem(item);
     }
     setBusy(false);
   }
@@ -98,16 +123,20 @@ export function UploadDropzone() {
       {queue.length > 0 && (
         <>
           <ul className="mt-4 space-y-2" aria-live="polite">
-            {queue.map(({ id, file, status, progress, message, result }) => {
+            {queue.map(({ id, file, status, progress, pipeline, message, upload, output }) => {
               const Icon = mediaTypeOf(file.type) === "video" ? FileVideo : ImageIcon;
+              const active = status === "uploading" || status === "analyzing";
+              const info = output?.info;
               return (
-                <li key={id} className="rounded-lg border border-zinc-800 p-2 text-sm">
+                <li key={id} className="space-y-2 rounded-lg border border-zinc-800 p-2 text-sm">
                   <div className="flex items-center gap-3">
                     <Icon className="size-4 shrink-0 text-zinc-400" aria-hidden />
                     <div className="min-w-0 flex-1">
                       <p className="truncate">{file.name}</p>
                       <p className="text-xs text-zinc-500">
-                        {file.type || "unknown type"} · {formatBytes(file.size)}
+                        {info
+                          ? `${info.width ?? "?"}×${info.height ?? "?"} · ${(info.format ?? "").toUpperCase()} · ${formatBytes(info.bytes)}`
+                          : `${file.type || "unknown type"} · ${formatBytes(file.size)}`}
                       </p>
                     </div>
                     <span className="flex items-center gap-1 text-xs">
@@ -117,9 +146,14 @@ export function UploadDropzone() {
                           <Loader2 className="size-3 animate-spin" aria-hidden /> {progress}%
                         </span>
                       )}
-                      {status === "uploaded" && (
+                      {status === "analyzing" && (
+                        <span className="flex items-center gap-1 text-sky-300">
+                          <Loader2 className="size-3 animate-spin" aria-hidden /> Processing
+                        </span>
+                      )}
+                      {status === "done" && (
                         <span className="flex items-center gap-1 text-emerald-300">
-                          <CircleCheck className="size-3" aria-hidden /> Uploaded
+                          <CircleCheck className="size-3" aria-hidden /> Analyzed &amp; organized
                         </span>
                       )}
                       {status === "failed" && (
@@ -131,13 +165,14 @@ export function UploadDropzone() {
                     <button
                       type="button"
                       aria-label={`Remove ${file.name}`}
-                      disabled={status === "uploading"}
+                      disabled={active}
                       onClick={() => setQueue((q) => q.filter((f) => f.id !== id))}
                       className="rounded p-1 text-zinc-500 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-sky-500 disabled:opacity-40"
                     >
                       <X className="size-4" aria-hidden />
                     </button>
                   </div>
+
                   {status === "uploading" && (
                     <div
                       role="progressbar"
@@ -145,15 +180,41 @@ export function UploadDropzone() {
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={progress}
-                      className="mt-2 h-1 overflow-hidden rounded bg-zinc-800"
+                      className="h-1 overflow-hidden rounded bg-zinc-800"
                     >
                       <div className="h-full bg-sky-500 transition-[width]" style={{ width: `${progress}%` }} />
                     </div>
                   )}
-                  {status === "uploaded" && result && (
-                    <p className="mt-1 truncate text-xs text-zinc-500">
-                      {result.public_id} ·{" "}
-                      <a href={result.secure_url} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">
+
+                  {status !== "ready" && !(status === "failed" && !upload && pipeline.INGEST === "pending") && (
+                    <PipelineStatus state={pipeline} compact />
+                  )}
+
+                  {output && output.tags.length > 0 && (
+                    <ul className="flex flex-wrap gap-1">
+                      {output.tags.map((t) => (
+                        <li key={t.name} className="rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-300">
+                          {t.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {output?.moderation && (
+                    <p className="text-xs text-zinc-400">
+                      Moderation: <span className="capitalize">{output.moderation}</span>
+                    </p>
+                  )}
+                  {output &&
+                    Object.entries(output.notes).map(([stage, note]) => (
+                      <p key={stage} className="text-xs text-zinc-500">
+                        {stage}: {note}
+                      </p>
+                    ))}
+
+                  {upload && (
+                    <p className="truncate text-xs text-zinc-500">
+                      {upload.public_id} ·{" "}
+                      <a href={upload.secure_url} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">
                         Open
                       </a>
                     </p>
@@ -168,11 +229,10 @@ export function UploadDropzone() {
             disabled={busy || readyCount === 0}
             className="mt-3 rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-sky-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? "Uploading…" : `Upload ${readyCount || ""} to Cloudinary`.replace("  ", " ")}
+            {busy ? "Processing…" : "Upload & run pipeline"}
           </button>
         </>
       )}
     </section>
   );
 }
-

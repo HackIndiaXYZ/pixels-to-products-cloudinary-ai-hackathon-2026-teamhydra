@@ -4,5 +4,5 @@ export const PIPELINE_STAGE_IDS = [
 ] as const;
 
 export type PipelineStageId = (typeof PIPELINE_STAGE_IDS)[number];
-export type StageStatus = "pending" | "processing" | "completed" | "failed";
+export type StageStatus = "pending" | "processing" | "completed" | "failed" | "skipped";
 export type PipelineState = Record<PipelineStageId, StageStatus>;

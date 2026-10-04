@@ -23,11 +23,19 @@ export function toApiFailure(err: unknown) {
   const code = typeof inner?.code === "string" ? inner.code : null;
   console.error("[cloudinary] request failed:", httpCode ?? code ?? "unknown");
 
+  rconst message = typeof inner?.message === "string" ? inner.message : null;
+  if (httpCode === 400 && message) {
+    return fail("CLOUDINARY_ERROR", `Cloudinary: ${message}`, 400);
+  }
+
   if (code && NETWORK_CODES.has(code)) {
     return fail("NETWORK_ERROR", "Could not reach Cloudinary. Check your connection.", 502);
   }
   if (httpCode === 401 || httpCode === 403) {
     return fail("CLOUDINARY_ERROR", "Cloudinary rejected the credentials.", 502);
+  }
+    if (httpCode === 404) {
+    return fail("CLOUDINARY_ERROR", "Asset not found.", 404);
   }
   if (httpCode !== null) {
     return fail("CLOUDINARY_ERROR", "Cloudinary request failed.", 502);
