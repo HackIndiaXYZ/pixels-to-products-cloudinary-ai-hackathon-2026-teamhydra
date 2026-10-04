@@ -29,3 +29,34 @@ export type DashboardFilters = {
   type: MediaType | "all";
   moderation: "approved" | "review" | "rejected" | "all";
 };
+
+export type PackId = "website" | "instagram" | "story" | "thumbnail";
+
+export type VariantId =
+  | "original"
+  | "optimized"
+  | "website"
+  | "square"
+  | "portrait"
+  | "story"
+  | "thumbnail"
+  | "background-removed";
+
+/** Result of requesting a variant URL from Cloudinary's CDN. */
+export type VariantCheck = {
+  ok: boolean;
+  status?: number;
+  contentType?: string;
+  bytes?: number;
+};
+
+export type MediaVariant = {
+  id: VariantId;
+  label: string;
+  url: string;
+  /** Cloudinary transformation string; empty for the original. */
+  transformation: string;
+  width?: number;
+  height?: number;
+  check?: VariantCheck;
+};

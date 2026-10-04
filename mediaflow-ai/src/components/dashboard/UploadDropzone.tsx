@@ -10,6 +10,7 @@ import { runPipeline, type PipelineOutput } from "@/lib/pipeline-client";
 import { uploadToCloudinary } from "@/lib/upload-client";
 import { cn } from "@/lib/utils";
 import type { PipelineStageId, PipelineState, StageStatus } from "@/types/pipeline";
+import { MediaPack } from "@/components/dashboard/MediaPack";
 
 type ItemStatus = "ready" | "uploading" | "analyzing" | "done" | "failed";
 
@@ -210,6 +211,18 @@ export function UploadDropzone() {
                         {stage}: {note}
                       </p>
                     ))}
+                  {output && (
+                    <details className="rounded-lg border border-zinc-800 p-2">
+                      <summary className="cursor-pointer text-xs font-medium text-zinc-300">Media pack</summary>
+                      <div className="mt-3">
+                        <MediaPack
+                          publicId={output.info.publicId}
+                          resourceType={output.info.resourceType}
+                          initial={output.variants}
+                        />
+                      </div>
+                    </details>
+                  )}
 
                   {upload && (
                     <p className="truncate text-xs text-zinc-500">

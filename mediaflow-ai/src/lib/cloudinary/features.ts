@@ -23,3 +23,6 @@ export const getTaggingFeature = () =>
 
 export const getModerationFeature = () =>
   readFeature("CLOUDINARY_MODERATION_ADDON", "Moderation", MODERATION_ADDONS);
+
+export const getBackgroundRemovalFeature = () =>
+  readFeature("CLOUDINARY_BACKGROUND_REMOVAL", "Background removal", ["enabled"] as const);
