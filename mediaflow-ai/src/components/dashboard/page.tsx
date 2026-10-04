@@ -6,6 +6,7 @@ import { StatsBar } from "@/components/dashboard/StatsBar";
 import { UploadDropzone } from "@/components/dashboard/UploadDropzone";
 import { hasActiveFilters, parseFilters } from "@/lib/media";
 import type { MediaAsset } from "@/types/media";
+import { CloudinaryStatus } from "@/components/dashboard/CloudinaryStatus";
 
 export const metadata: Metadata = { title: "Dashboard · MediaFlow AI" };
 
@@ -18,7 +19,10 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+  <h1 className="text-2xl font-semibold">Dashboard</h1>
+  <CloudinaryStatus />
+      </div>
       <StatsBar assets={assets} />
       <UploadDropzone />
       <section aria-labelledby="media-heading" className="space-y-4">

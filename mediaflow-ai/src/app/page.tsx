@@ -3,6 +3,7 @@ import {
   ArrowRight, Braces, Crop, Eraser, Gauge, Search, ShieldCheck, Tags, UploadCloud,
 } from "lucide-react";
 import { PipelineStatus } from "@/components/pipeline/PipelineStatus";
+import { CloudinaryStatus } from "@/components/dashboard/CloudinaryStatus";
 
 const FEATURES = [
   { icon: UploadCloud, title: "Signed uploads", body: "Uploads are signed on the server, so the API secret never reaches the browser." },
