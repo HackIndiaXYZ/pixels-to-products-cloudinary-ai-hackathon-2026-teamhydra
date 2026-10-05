@@ -20,6 +20,26 @@ const resourceSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+export async function findAsset(publicId: string): Promise<AssetInfo> {
+  let notFound = true;
+  for (const resourceType of ["image", "video"] as const) {
+    try {
+      return await analyzeAsset(publicId, resourceType);
+    } catch (err) {
+      const httpCode =
+        typeof err === "object" && err !== null && "http_code" in err
+          ? (err as { http_code?: unknown }).http_code
+          : undefined;
+      if (!(err instanceof AssetNotFoundError) && httpCode !== 404) {
+        notFound = false;
+        throw err;
+      }
+    }
+  }
+  if (notFound) throw new AssetNotFoundError();
+  throw new AssetNotFoundError();
+}
+
 export async function analyzeAsset(publicId: string, resourceType: MediaType): Promise<AssetInfo> {
   const cloudinary = getCloudinary();
   const raw: unknown = await cloudinary.api.resource(publicId, { resource_type: resourceType });
