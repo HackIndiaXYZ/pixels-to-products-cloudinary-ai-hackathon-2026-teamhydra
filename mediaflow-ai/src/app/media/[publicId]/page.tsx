@@ -11,6 +11,7 @@ import { formatBytes } from "@/lib/media";
 import { overallModeration } from "@/lib/moderation";
 import { PACK_IDS } from "@/lib/transform";
 import type { ModerationStatus } from "@/types/media";
+import type { VariantsResult } from "@/lib/cloudinary/variants-schemas";
 import type { PipelineState } from "@/types/pipeline";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ function buildPipeline(
   context: Record<string, string>,
   moderation: ModerationStatus,
   variantChecks: Array<{ ok: boolean; bytes?: number }>,
+  variantError = false,
 ): PipelineState {
   const derived = variantChecks.length > 0;
   const optimized = variantChecks.some((check) => check.bytes !== undefined);
@@ -52,9 +54,9 @@ function buildPipeline(
     TAG: context.tagging && context.tagging !== "unavailable" ? "completed" : "skipped",
     MODERATE: moderation !== "unavailable" ? "completed" : "skipped",
     ORGANIZE: context.processed_at ? "completed" : "skipped",
-    TRANSFORM: derived ? "completed" : "skipped",
-    OPTIMIZE: optimized ? "completed" : "skipped",
-    DELIVER: derived ? (delivered ? "completed" : "failed") : "skipped",
+    TRANSFORM: variantError ? "failed" : (derived ? "completed" : "skipped"),
+    OPTIMIZE: variantError ? "skipped" : (optimized ? "completed" : "skipped"),
+    DELIVER: variantError ? "skipped" : (derived ? (delivered ? "completed" : "failed") : "skipped"),
   };
 }
 
@@ -74,7 +76,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function MediaDetailPage({ params }: Props) {
   const { publicId } = await params;
-  const decodedPublicId = decodeURIComponent(publicId);
+  let decodedPublicId: string;
+  try {
+    decodedPublicId = decodeURIComponent(publicId);
+  } catch {
+    notFound();
+  }
 
   let asset;
   try {
@@ -94,10 +101,16 @@ export default async function MediaDetailPage({ params }: Props) {
     );
   }
 
-  const variants = await generateVariants(asset.publicId, asset.resourceType, [...PACK_IDS]);
-  const derived = variants.variants.filter((variant) => variant.id !== "original");
-  const optimized = variants.variants.find((variant) => variant.id === "optimized" && variant.check?.ok)?.url
-    ?? asset.secureUrl;
+  let variants: VariantsResult | null = null;
+  let variantError = false;
+  try {
+    variants = await generateVariants(asset.publicId, asset.resourceType, [...PACK_IDS]);
+  } catch {
+    variantError = true;
+  }
+  const derived = variants?.variants.filter((variant) => variant.id !== "original") ?? [];
+  const optimized = variants?.variants.find((variant) => variant.id === "optimized" && variant.check?.ok)?.url;
+  const previewUrl = optimized ?? asset.secureUrl;
   const moderation = overallModeration(asset.moderation) ?? (
     asset.context?.moderation === "approved" ? "approved"
       : asset.context?.moderation === "rejected" ? "rejected"
@@ -108,7 +121,7 @@ export default async function MediaDetailPage({ params }: Props) {
   const pipeline = buildPipeline(context, moderation, derived.map((variant) => ({
     ok: variant.check?.ok ?? false,
     bytes: variant.check?.bytes,
-  })));
+  })), variantError);
   const tags = asset.tags.filter((tag) => tag !== "mediaflow");
   const filename = asset.filename ?? asset.publicId.split("/").pop();
 
@@ -134,14 +147,14 @@ export default async function MediaDetailPage({ params }: Props) {
         <section aria-labelledby="preview-heading" className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
           <h2 id="preview-heading" className="sr-only">Media preview</h2>
           {asset.resourceType === "video" ? (
-            <video src={optimized} controls playsInline preload="metadata" className="max-h-[70vh] min-h-80 w-full bg-black object-contain" aria-label={filename} />
+            <video src={previewUrl} controls playsInline preload="metadata" className="max-h-[70vh] min-h-80 w-full bg-black object-contain" aria-label={filename} />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={optimized} alt={filename} className="max-h-[70vh] min-h-80 w-full object-contain" />
+            <img src={previewUrl} alt={filename} className="max-h-[70vh] min-h-80 w-full object-contain" />
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 px-4 py-3 text-xs text-zinc-500">
-            <span>Optimized preview · f_auto · q_auto</span>
-            <a href={optimized} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">Open optimized</a>
+            <span>{optimized ? "Optimized preview · f_auto · q_auto" : "Original secure delivery"}</span>
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">Open optimized</a>
           </div>
         </section>
 
@@ -194,6 +207,11 @@ export default async function MediaDetailPage({ params }: Props) {
       </Section>
 
       <Section title="Generated transformations">
+        {variantError && (
+          <p role="alert" className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            Generated variants are temporarily unavailable. No transformation URL is shown as generated until Cloudinary confirms delivery.
+          </p>
+        )}
         <MediaPack publicId={asset.publicId} resourceType={asset.resourceType} initial={variants} />
       </Section>
 
@@ -201,10 +219,10 @@ export default async function MediaDetailPage({ params }: Props) {
         <div className="space-y-3">
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
             <p className="text-xs text-zinc-500">Optimized delivery URL</p>
-            <p className="mt-1 break-all font-mono text-xs text-zinc-300">{optimized}</p>
+            <p className="mt-1 break-all font-mono text-xs text-zinc-300">{previewUrl}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href={optimized} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-sky-500">
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-sky-500">
               <ExternalLink className="size-3.5" aria-hidden /> Preview / Open
             </a>
             <CopyUrlButton url={optimized} label="Copy optimized URL" />
