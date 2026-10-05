@@ -154,7 +154,7 @@ export default async function MediaDetailPage({ params }: Props) {
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 px-4 py-3 text-xs text-zinc-500">
             <span>{optimized ? "Optimized preview · f_auto · q_auto" : "Original secure delivery"}</span>
-            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">Open optimized</a>
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">Open delivery</a>
           </div>
         </section>
 
@@ -225,7 +225,7 @@ export default async function MediaDetailPage({ params }: Props) {
             <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-sky-500">
               <ExternalLink className="size-3.5" aria-hidden /> Preview / Open
             </a>
-            <CopyUrlButton url={optimized} label="Copy optimized URL" />
+            <CopyUrlButton url={previewUrl} label={optimized ? "Copy optimized URL" : "Copy delivery URL"} />
           </div>
         </div>
       </Section>
