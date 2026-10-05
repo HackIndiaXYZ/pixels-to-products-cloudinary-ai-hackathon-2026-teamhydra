@@ -4,6 +4,7 @@ import type { MediaType, MediaVariant, PackId, VariantCheck } from "@/types/medi
 import { analyzeAsset } from "./analyze";
 import { getBackgroundRemovalFeature } from "./features";
 import type { BackgroundRemovalState, VariantsResult } from "./variants-schemas";
+import { getCloudinary } from "./config";
 
 /** Requests the variant the way a modern browser would, so f_auto picks the real format. */
 async function checkVariant(url: string): Promise<VariantCheck> {
@@ -46,28 +47,19 @@ function backgroundRemoval(secureUrl: string, resourceType: MediaType): Backgrou
   return { available: true, variant };
 }
 
-export async function generateVariants(
-  publicId: string,
-  resourceType: MediaType,
-  packs: PackId[],
-): Promise<VariantsResult> {
-  const asset = await analyzeAsset(publicId, resourceType); // ownership check + real asset URL
+  // Record how many variants were delivered so the dashboard stat is real.
+  const delivered = checked.filter((v) => v.check?.ok).length;
+  try {
+    await getCloudinary().uploader.explicit(publicId, {
+      type: "upload",
+      resource_type: resourceType,
+      context: { ...asset.context, variants: String(delivered) },
+    });
+  } catch {
+    // The count is informational; variant URLs are already usable without it.
+  }
 
-  const original: MediaVariant = {
-    id: "original",
-    label: "Original",
-    url: asset.secureUrl,
-    transformation: "",
-    width: asset.width,
-    height: asset.height,
-    check: asset.bytes ? { ok: true, bytes: asset.bytes } : undefined,
-  };
-
-  const derived = variantIdsForPacks(packs).map((id) => buildVariant(asset.secureUrl, resourceType, id));
-  const checked = await Promise.all(derived.map(async (v) => ({ ...v, check: await checkVariant(v.url) })));
-
-  return {
+ return {
     variants: [original, ...checked],
     backgroundRemoval: backgroundRemoval(asset.secureUrl, resourceType),
   };
-}

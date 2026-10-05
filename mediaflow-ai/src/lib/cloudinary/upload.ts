@@ -18,6 +18,7 @@ export function createUploadSignature(resourceType: MediaType): SignatureData {
   }
 
   const params = {
+    use_filename: "true",
     timestamp: String(Math.round(Date.now() / 1000)),
     tags: UPLOAD_TAG,
     allowed_formats: ALLOWED_FORMATS[resourceType],

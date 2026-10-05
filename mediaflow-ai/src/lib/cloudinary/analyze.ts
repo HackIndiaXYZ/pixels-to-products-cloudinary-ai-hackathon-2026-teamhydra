@@ -8,6 +8,7 @@ import { UPLOAD_TAG } from "./upload";
 export class AssetNotFoundError extends Error {}
 
 const resourceSchema = z.object({
+  context: z.object({ custom: z.record(z.string(), z.string()).optional() }).optional(),
   moderation: z.array(z.object({ kind: z.string().optional(), status: z.string() })).optional(),
   public_id: z.string(),
   secure_url: z.string().url(),
@@ -42,5 +43,6 @@ export async function analyzeAsset(publicId: string, resourceType: MediaType): P
     createdAt: r.created_at,
     tags,
     moderation: r.moderation,
+    context: r.context?.custom,
   };
 }

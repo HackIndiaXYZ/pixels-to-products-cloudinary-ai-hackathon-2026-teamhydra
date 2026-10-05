@@ -6,6 +6,7 @@ export const analyzeRequestSchema = z.object({
 });
 
 export type AssetInfo = {
+  context?: Record<string, string>;
   publicId: string;
   resourceType: "image" | "video";
   format?: string;

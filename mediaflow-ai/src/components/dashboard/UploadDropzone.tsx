@@ -1,7 +1,9 @@
 "use client";
 
 import { CircleAlert, CircleCheck, FileVideo, ImageIcon, Loader2, UploadCloud, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
+import { MediaPack } from "@/components/dashboard/MediaPack";
 import { PipelineStatus } from "@/components/pipeline/PipelineStatus";
 import type { UploadResult } from "@/lib/cloudinary/upload-schemas";
 import { formatBytes, mediaTypeOf, validateFile } from "@/lib/media";
@@ -10,7 +12,6 @@ import { runPipeline, type PipelineOutput } from "@/lib/pipeline-client";
 import { uploadToCloudinary } from "@/lib/upload-client";
 import { cn } from "@/lib/utils";
 import type { PipelineStageId, PipelineState, StageStatus } from "@/types/pipeline";
-import { MediaPack } from "@/components/dashboard/MediaPack";
 
 type ItemStatus = "ready" | "uploading" | "analyzing" | "done" | "failed";
 
@@ -26,6 +27,7 @@ type QueuedFile = {
 };
 
 export function UploadDropzone() {
+  const router = useRouter();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -73,6 +75,7 @@ export function UploadDropzone() {
     try {
       const output = await runPipeline(upload, (stage, status) => setStage(item.id, stage, status));
       patch(item.id, { status: "done", output });
+      router.refresh();
     } catch (err) {
       patch(item.id, { status: "failed", message: err instanceof Error ? err.message : "Processing failed." });
     }
@@ -211,6 +214,7 @@ export function UploadDropzone() {
                         {stage}: {note}
                       </p>
                     ))}
+
                   {output && (
                     <details className="rounded-lg border border-zinc-800 p-2">
                       <summary className="cursor-pointer text-xs font-medium text-zinc-300">Media pack</summary>

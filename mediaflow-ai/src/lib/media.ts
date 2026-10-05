@@ -10,6 +10,8 @@ const filtersSchema = z.object({
   moderation: z.enum(["all", "approved", "review", "rejected"]).catch("all"),
 });
 
+export const DEFAULT_FILTERS: DashboardFilters = { search: "", type: "all", moderation: "all" };
+
 type RawParams = Record<string, string | string[] | undefined>;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
