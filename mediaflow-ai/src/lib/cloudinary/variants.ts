@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildVariant, variantIdsForPacks } from "@/lib/transform";
+import { buildVariant, insertTransformation, variantIdsForPacks } from "@/lib/transform";
 import type { MediaType, MediaVariant, PackId, VariantCheck } from "@/types/media";
 import { analyzeAsset } from "./analyze";
 import { getBackgroundRemovalFeature } from "./features";
@@ -40,7 +40,7 @@ function backgroundRemoval(secureUrl: string, resourceType: MediaType): Backgrou
     id: "background-removed",
     label: "Background removed",
     transformation,
-    url: require("@/lib/transform").insertTransformation(secureUrl, transformation),
+    url: insertTransformation(secureUrl, transformation),
   };
   return { available: true, variant };
 }
