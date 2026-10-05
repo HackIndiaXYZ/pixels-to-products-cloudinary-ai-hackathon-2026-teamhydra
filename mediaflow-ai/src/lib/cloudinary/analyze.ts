@@ -11,6 +11,8 @@ const resourceSchema = z.object({
   context: z.object({ custom: z.record(z.string(), z.string()).optional() }).optional(),
   moderation: z.array(z.object({ kind: z.string().optional(), status: z.string() })).optional(),
   public_id: z.string(),
+  display_name: z.string().optional(),
+  original_filename: z.string().optional(),
   secure_url: z.string().url(),
   format: z.string().optional(),
   width: z.number().optional(),
@@ -54,6 +56,7 @@ export async function analyzeAsset(publicId: string, resourceType: MediaType): P
 
   return {
     publicId: r.public_id,
+    filename: r.display_name ?? r.original_filename,
     resourceType,
     format: r.format,
     width: r.width,
