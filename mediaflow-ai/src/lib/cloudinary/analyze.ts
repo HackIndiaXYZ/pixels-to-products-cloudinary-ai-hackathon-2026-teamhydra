@@ -11,6 +11,8 @@ const resourceSchema = z.object({
   context: z.object({ custom: z.record(z.string(), z.string()).optional() }).optional(),
   moderation: z.array(z.object({ kind: z.string().optional(), status: z.string() })).optional(),
   public_id: z.string(),
+  display_name: z.string().optional(),
+  original_filename: z.string().optional(),
   secure_url: z.string().url(),
   format: z.string().optional(),
   width: z.number().optional(),
@@ -19,6 +21,26 @@ const resourceSchema = z.object({
   created_at: z.string().optional(),
   tags: z.array(z.string()).optional(),
 });
+
+export async function findAsset(publicId: string): Promise<AssetInfo> {
+  let notFound = true;
+  for (const resourceType of ["image", "video"] as const) {
+    try {
+      return await analyzeAsset(publicId, resourceType);
+    } catch (err) {
+      const httpCode =
+        typeof err === "object" && err !== null && "http_code" in err
+          ? (err as { http_code?: unknown }).http_code
+          : undefined;
+      if (!(err instanceof AssetNotFoundError) && httpCode !== 404) {
+        notFound = false;
+        throw err;
+      }
+    }
+  }
+  if (notFound) throw new AssetNotFoundError();
+  throw new AssetNotFoundError();
+}
 
 export async function analyzeAsset(publicId: string, resourceType: MediaType): Promise<AssetInfo> {
   const cloudinary = getCloudinary();
@@ -34,6 +56,7 @@ export async function analyzeAsset(publicId: string, resourceType: MediaType): P
 
   return {
     publicId: r.public_id,
+    filename: r.display_name ?? r.original_filename,
     resourceType,
     format: r.format,
     width: r.width,

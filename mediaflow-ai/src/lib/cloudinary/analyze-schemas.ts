@@ -14,6 +14,7 @@ export type AssetInfo = {
   height?: number;
   bytes?: number;
   secureUrl: string;
+  filename?: string;
   createdAt?: string;
     tags: string[];
   moderation?: { kind?: string; status: string }[];
