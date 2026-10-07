@@ -8,4 +8,4 @@ Quick start:
     cp .env.example .env.local   # PowerShell: Copy-Item .env.example .env.local
     npm run dev
 
-Scripts: `dev`, `build`, `lint`, `typecheck`, `test`.
+Scripts: `dev`, `build`, `lint`, `typecheck`, `test`...
