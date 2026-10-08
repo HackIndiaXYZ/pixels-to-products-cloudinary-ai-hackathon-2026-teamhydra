@@ -5,6 +5,7 @@ import { generateVariants } from "@/lib/cloudinary/variants";
 import { variantsRequestSchema } from "@/lib/cloudinary/variants-schemas";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
